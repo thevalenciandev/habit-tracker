@@ -18,14 +18,19 @@ type Habit struct {
 	Days []string `json:"days"`
 }
 
+type httpError struct {
+	err        error
+	statusCode int
+}
+
 // Custom Handler that can return errors
-type appHandler func(w http.ResponseWriter, r *http.Request) error
+type appHandler func(w http.ResponseWriter, r *http.Request) *httpError
 
 // Our custom Handler implements the http.Handler interface and wraps
 // it with error handling capabilities
 func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := fn(w, r); err != nil {
-		http.Error(w, "Unexpected error", http.StatusInternalServerError) //TODO should we give more details of the error?
+		http.Error(w, err.err.Error(), err.statusCode)
 	}
 }
 
@@ -45,46 +50,50 @@ func main() {
 	fmt.Println("Started HabitTracker server on 8080.")
 }
 
-func habitByIdHandler(w http.ResponseWriter, r *http.Request) error {
+func habitByIdHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	switch r.Method {
 	case "GET":
 		matches := habitIdRegexp.FindStringSubmatch(r.URL.Path)
-		if matches != nil || len(matches) != 2 {
-			return errors.New("Path " + r.URL.Path + " not found")
+		if matches == nil || len(matches) != 2 {
+			return &httpError{errors.New("Path " + r.URL.Path + " not found"), http.StatusNotFound}
 		}
 		id, err := strconv.Atoi(matches[1])
 		if err != nil {
-			return err
+			return &httpError{err, http.StatusNotFound}
 		}
 		h, ok := habits[id]
 		if !ok {
-			return errors.New("Habit " + strconv.Itoa(id) + " not found")
-		} else {
-			return encodeAsJson(h, w)
+			return &httpError{errors.New("Habit " + strconv.Itoa(id) + " not found"), http.StatusNotFound}
 		}
+		return encodeAsJson(h, w, http.StatusOK)
+
 	default:
-		return errors.New("Method " + r.Method + " not supported")
+		return &httpError{errors.New("Method " + r.Method + " not supported"), http.StatusMethodNotAllowed}
 	}
 }
 
-func encodeAsJson(toEncode any, w http.ResponseWriter) error {
+func encodeAsJson(toEncode any, w http.ResponseWriter, statusCode int) *httpError {
+	w.WriteHeader(statusCode)
 	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(toEncode)
+	if err := json.NewEncoder(w).Encode(toEncode); err != nil {
+		return &httpError{err, http.StatusInternalServerError}
+	}
+	return nil
 }
 
-func allHabitsHandler(w http.ResponseWriter, r *http.Request) error {
+func allHabitsHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	switch r.Method {
 	case "GET":
-		return encodeAsJson(maps.Values(habits), w)
+		return encodeAsJson(maps.Values(habits), w, http.StatusOK)
 	case "POST":
 		var h Habit
 		if err := json.NewDecoder(r.Body).Decode(&h); err != nil {
-			return err
+			return &httpError{err, http.StatusInternalServerError}
 		}
 		habitCnt++
 		habits[habitCnt] = h
-		return encodeAsJson(h, w)
+		return encodeAsJson(h, w, http.StatusCreated)
 	default:
-		return errors.New("Method " + r.Method + " not supported")
+		return &httpError{errors.New("Method " + r.Method + " not supported"), http.StatusMethodNotAllowed}
 	}
 }
