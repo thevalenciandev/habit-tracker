@@ -12,7 +12,7 @@ import (
 
 // Public as the encoding/json package needs access to it to do its job
 type Habit struct {
-	Id   string   `json:"id"`
+	Id   int      `json:"id"`
 	Name string   `json:"name"`
 	Days []string `json:"days"`
 }
@@ -33,8 +33,9 @@ func allHabitsHandler(w http.ResponseWriter, r *http.Request) *httpError {
 		if err := json.NewDecoder(r.Body).Decode(&h); err != nil {
 			return &httpError{err, http.StatusInternalServerError}
 		}
-		habitCnt++
+		h.Id = habitCnt
 		habits[habitCnt] = h
+		habitCnt++
 		return encodeAsJson(h, w, http.StatusCreated)
 	default:
 		return &httpError{errors.New("Method " + r.Method + " not supported"), http.StatusMethodNotAllowed}
