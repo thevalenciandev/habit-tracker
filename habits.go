@@ -23,7 +23,7 @@ var (
 	habitCnt      = 1
 )
 
-func allHabitsHandler(w http.ResponseWriter, r *http.Request) *httpError {
+func habitsHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	switch r.Method {
 	case "GET":
 		err := encodeAsJson(maps.Values(habits), w, http.StatusOK)
@@ -38,7 +38,7 @@ func allHabitsHandler(w http.ResponseWriter, r *http.Request) *httpError {
 		habitCnt++
 		return encodeAsJson(h, w, http.StatusCreated)
 	default:
-		return &httpError{errors.New("Method " + r.Method + " not supported"), http.StatusMethodNotAllowed}
+		return methodNotAllowedHttpError(r.Method)
 	}
 }
 
@@ -60,6 +60,6 @@ func habitByIdHandler(w http.ResponseWriter, r *http.Request) *httpError {
 		return encodeAsJson(h, w, http.StatusOK)
 
 	default:
-		return &httpError{errors.New("Method " + r.Method + " not supported"), http.StatusMethodNotAllowed}
+		return methodNotAllowedHttpError(r.Method)
 	}
 }

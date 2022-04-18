@@ -5,6 +5,8 @@ import (
 	"net/http"
 )
 
+// Simple struct to hold any error that might occur processing a request
+// and the associated http status code to return
 type httpError struct {
 	err        error
 	statusCode int
@@ -22,7 +24,8 @@ func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.Handle("/v1/habits", appHandler(allHabitsHandler))
+	http.Handle("/v1/users", appHandler(usersHandler))
+	http.Handle("/v1/habits", appHandler(habitsHandler))
 	http.Handle("/v1/habits/", appHandler(habitByIdHandler))
 
 	http.ListenAndServe(":8080", nil)

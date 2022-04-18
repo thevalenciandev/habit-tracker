@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 )
 
@@ -13,4 +14,8 @@ func encodeAsJson(toEncode any, w http.ResponseWriter, statusCode int) *httpErro
 		return &httpError{err, http.StatusInternalServerError}
 	}
 	return nil
+}
+
+func methodNotAllowedHttpError(method string) *httpError {
+	return &httpError{errors.New("Method " + method + " not supported"), http.StatusMethodNotAllowed}
 }
