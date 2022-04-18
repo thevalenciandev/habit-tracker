@@ -6,22 +6,40 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"golang.org/x/exp/maps"
 )
 
 // Public as the encoding/json package needs access to it to do its job
 type Habit struct {
-	Id   int      `json:"id"`
+	ID   int      `json:"id"`
 	Name string   `json:"name"`
 	Days []string `json:"days"`
 }
 
+// Implement the getID contract from storage
+func (h Habit) getID() int {
+	return h.ID
+}
+
 var (
-	habitIdRegexp = regexp.MustCompile(`/v1/habits/([0-9]+)$`)
-	habits        = make(map[int]Habit)
-	habitCnt      = 1
+	habitIdRegexp               = regexp.MustCompile(`/v1/habits/([0-9]+)$`)
+	habits        map[int]Habit = loadFromFile("habits.csv", habitsTransform)
+	habitCnt                    = len(habits) + 1 // assumes IDs start from 1
 )
+
+// Assumes Habits are stored as ID,Name,Days
+// where Days are a "|" separated list of weekdays
+func habitsTransform(fileLineTokens []string) Habit {
+	id, err := strconv.Atoi(strings.TrimSpace(fileLineTokens[0]))
+	if err != nil {
+		panic("Error loading habit. Invalid ID: " + fileLineTokens[0])
+	}
+	name := strings.TrimSpace(fileLineTokens[1])
+	days := strings.Split(strings.TrimSpace(fileLineTokens[2]), "|")
+	return Habit{id, name, days}
+}
 
 func habitsHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	switch r.Method {
@@ -33,7 +51,7 @@ func habitsHandler(w http.ResponseWriter, r *http.Request) *httpError {
 		if err := json.NewDecoder(r.Body).Decode(&h); err != nil {
 			return &httpError{err, http.StatusInternalServerError}
 		}
-		h.Id = habitCnt
+		h.ID = habitCnt
 		habits[habitCnt] = h
 		habitCnt++
 		return encodeAsJson(h, w, http.StatusCreated)
