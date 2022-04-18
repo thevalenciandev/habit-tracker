@@ -7,10 +7,11 @@ import (
 )
 
 type User struct {
-	name string
+	ID   int
+	Name string
 }
 
-var users = make(map[int]User)
+var users = loadUsers()
 
 func usersHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	switch r.Method {
