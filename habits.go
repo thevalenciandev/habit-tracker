@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"golang.org/x/exp/maps"
 )
@@ -27,6 +28,7 @@ var (
 	habitIdRegexp               = regexp.MustCompile(`/v1/habits/([0-9]+)$`)
 	habits        map[int]Habit = loadFromFile("habits.csv", habitsTransform)
 	habitCnt                    = len(habits) + 1 // assumes IDs start from 1
+	mu                          = sync.Mutex{}
 )
 
 // Assumes Habits are stored as ID,Name,Days
@@ -44,20 +46,42 @@ func habitsTransform(fileLineTokens []string) Habit {
 func habitsHandler(w http.ResponseWriter, r *http.Request) *httpError {
 	switch r.Method {
 	case "GET":
-		err := encodeAsJson(maps.Values(habits), w, http.StatusOK)
+		err := encodeAsJson(getHabitList(), w, http.StatusOK)
 		return err
 	case "POST":
 		var h Habit
 		if err := json.NewDecoder(r.Body).Decode(&h); err != nil {
 			return &httpError{err, http.StatusInternalServerError}
 		}
-		h.ID = habitCnt
-		habits[habitCnt] = h
-		habitCnt++
+		storeHabit(&h)
 		return encodeAsJson(h, w, http.StatusCreated)
 	default:
 		return methodNotAllowedHttpError(r.Method)
 	}
+}
+
+func getHabitList() []Habit {
+	mu.Lock()
+	defer mu.Unlock()
+
+	return maps.Values(habits)
+}
+
+func getHabit(id int) (*Habit, bool) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	h, ok := habits[id]
+	return &h, ok
+}
+
+func storeHabit(h *Habit) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	h.ID = habitCnt
+	habits[habitCnt] = *h
+	habitCnt++
 }
 
 func habitByIdHandler(w http.ResponseWriter, r *http.Request) *httpError {
@@ -71,11 +95,11 @@ func habitByIdHandler(w http.ResponseWriter, r *http.Request) *httpError {
 		if err != nil {
 			return &httpError{err, http.StatusNotFound}
 		}
-		h, ok := habits[id]
+		h, ok := getHabit(id)
 		if !ok {
 			return &httpError{errors.New("Habit " + strconv.Itoa(id) + " not found"), http.StatusNotFound}
 		}
-		return encodeAsJson(h, w, http.StatusOK)
+		return encodeAsJson(&h, w, http.StatusOK)
 
 	default:
 		return methodNotAllowedHttpError(r.Method)
